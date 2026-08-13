@@ -51,12 +51,18 @@ jobs:
           rm -rf /app
           git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /app
 
+      - name: Vérifier les fichiers
+        run: |
+          ls -la /app
+          cat /app/requirements.txt
+
       - name: Installer les dépendances Python
         working-directory: /app
         run: |
           pip install --user --upgrade pip setuptools wheel
           pip install --user --no-cache-dir -r requirements.txt
           python -m camoufox fetch
+          python -c "import cryptography; print('cryptography OK')"
 
       - name: Exécuter le script de login
         working-directory: /app
@@ -73,4 +79,6 @@ jobs:
           GH_REPO: pick-faucet
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
-        run: xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python test_login_workflow.py
+        run: |
+          export PATH="/root/.local/bin:$PATH"
+          xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python test_login_workflow.py
