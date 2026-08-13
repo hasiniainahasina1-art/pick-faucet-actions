@@ -1,0 +1,46 @@
+name: Logout Account
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Email du compte (LOGOUT_EMAIL)"
+        required: true
+        type: string
+      platform:
+        description: "Plateforme (ex: tronpick)"
+        required: true
+        type: string
+      userId:
+        description: "Identifiant utilisateur (USER_ID)"
+        required: true
+        type: string
+
+jobs:
+  logout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GH_TOKEN }}
+    steps:
+      - name: Cloner le dépôt privé
+        run: |
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /app
+
+      - name: Exécuter le script de déconnexion
+        working-directory: /app
+        env:
+          HOME: /home/camoxuser
+          DISPLAY: ":99"
+          LOGOUT_EMAIL: ${{ github.event.inputs.email }}
+          LOGOUT_PLATFORM: ${{ github.event.inputs.platform }}
+          USER_ID: ${{ github.event.inputs.userId }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_USERNAME: hasiniainahasina1-art
+          GH_REPO: pick-faucet
+          GH_BRANCH: main
+          CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
+        run: xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python borita.py
