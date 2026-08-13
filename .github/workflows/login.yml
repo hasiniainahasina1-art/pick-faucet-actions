@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 10
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
-      options: --user root
+      options: --user camoxuser
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GH_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
       - name: Exécuter le script de login
         working-directory: /app
         env:
-          HOME: /root
+          HOME: /home/camoxuser
           DISPLAY: ":99"
           TEST_EMAIL: ${{ github.event.inputs.email }}
           TEST_PASSWORD: ${{ github.event.inputs.password }}
