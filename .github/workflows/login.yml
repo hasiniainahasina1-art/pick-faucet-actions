@@ -51,6 +51,13 @@ jobs:
           rm -rf /app
           git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /app
 
+      - name: Installer les dépendances Python
+        working-directory: /app
+        run: |
+          pip install --user --upgrade pip setuptools wheel
+          pip install --user --no-cache-dir -r requirements.txt
+          python -m camoufox fetch
+
       - name: Exécuter le script de login
         working-directory: /app
         env:
