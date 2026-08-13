@@ -46,23 +46,16 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GH_TOKEN }}
     steps:
-      - name: Cloner le dépôt privé
+      - name: Cloner le dépôt privé (sans supprimer /app)
         run: |
-          rm -rf /app
-          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /app
-
-      - name: Installer les dépendances Python
-        working-directory: /app
-        run: |
-          pip install --upgrade pip setuptools wheel
-          pip install --no-cache-dir -r requirements.txt
-          python -m camoufox fetch
-          python -c "import cryptography; print('cryptography OK')"
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /tmp/repo
+          cp -r /tmp/repo/* /app/
+          cp -r /tmp/repo/.env /app/ 2>/dev/null || true
 
       - name: Exécuter le script de login
         working-directory: /app
         env:
-          HOME: /root
+          HOME: /home/camoxuser
           DISPLAY: ":99"
           TEST_EMAIL: ${{ github.event.inputs.email }}
           TEST_PASSWORD: ${{ github.event.inputs.password }}
