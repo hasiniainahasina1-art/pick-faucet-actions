@@ -68,3 +68,10 @@ jobs:
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python test_login_workflow.py
+
+      - name: Upload des vidéos
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: login-video
+          path: /app/videos/
