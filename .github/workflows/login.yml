@@ -47,6 +47,7 @@ jobs:
     steps:
       - name: Cloner le dépôt privé
         run: |
+          rm -rf /app
           git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /app
 
       - name: Exécuter le script de login
