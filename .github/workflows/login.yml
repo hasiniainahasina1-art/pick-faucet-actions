@@ -41,7 +41,6 @@ jobs:
     timeout-minutes: 10
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
-      options: --user camoxuser
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GH_TOKEN }}
