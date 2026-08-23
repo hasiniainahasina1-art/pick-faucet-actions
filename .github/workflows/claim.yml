@@ -1,4 +1,4 @@
-name: Claim Faucet
+name: Claim Faucet (sans proxy)
 
 on:
   workflow_dispatch:
@@ -15,6 +15,17 @@ on:
         description: "Identifiant utilisateur (USER_ID)"
         required: true
         type: string
+      # Inputs optionnels pour compatibilité avec le dashboard
+      password:
+        description: "Mot de passe (ignoré pour le claim)"
+        required: false
+        type: string
+        default: ""
+      proxyIndex:
+        description: "Index du proxy (ignoré, pas de proxy)"
+        required: false
+        type: string
+        default: "0"
 
 jobs:
   claim:
@@ -22,13 +33,17 @@ jobs:
     timeout-minutes: 10
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
+      options: --user camoxuser
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GH_TOKEN }}
+
     steps:
-      - name: Cloner le dépôt privé
+      - name: Cloner le dépôt privé (sans supprimer /app)
         run: |
-          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /app
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /tmp/repo
+          cp -r /tmp/repo/* /app/
+          cp -r /tmp/repo/.env /app/ 2>/dev/null || true
 
       - name: Exécuter le script de claim
         working-directory: /app
@@ -44,3 +59,10 @@ jobs:
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python voanjo.py
+
+      - name: Upload des vidéos
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: claim-video
+          path: /app/videos/
