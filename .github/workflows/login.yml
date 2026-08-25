@@ -38,7 +38,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5        # ← Timeout global du job à 5min (sécurité GitHub)
+    timeout-minutes: 10
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
       credentials:
@@ -47,7 +47,6 @@ jobs:
 
     steps:
       - name: Cloner le dépôt privé dans /app
-        timeout-minutes: 1    # ← Clone ne doit pas dépasser 1min
         run: |
           git clone \
             --depth=1 \
@@ -55,15 +54,19 @@ jobs:
             https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
             /tmp/repo
 
+          # Copier les fichiers sans écraser les dossiers système de /app
           cp -rn /tmp/repo/. /app/
+
+          # Copier .env si présent
           cp /tmp/repo/.env /app/.env 2>/dev/null || true
+
+          # Nettoyer le clone (contient le token en clair dans l'historique git)
           rm -rf /tmp/repo
 
           echo "✅ Dépôt privé copié dans /app"
           ls /app
 
       - name: Vérifier les fichiers requis
-        timeout-minutes: 1    # ← Vérification rapide
         run: |
           for f in test_login_workflow.py ananana.py ravitoto.py; do
             if [ ! -f "/app/$f" ]; then
@@ -76,7 +79,6 @@ jobs:
 
       - name: Exécuter le script de login
         id: login
-        timeout-minutes: 3    # ← Script tué après 3min si pas terminé (laisse ~30s pour upload)
         working-directory: /app
         env:
           HOME: /home/camoxuser
@@ -92,18 +94,9 @@ jobs:
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: |
-          # Lancer le script avec timeout shell de 4min30s précis
-          timeout 270 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+          xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
             python test_login_workflow.py
           EXIT_CODE=$?
-
-          # 124 = timeout shell atteint
-          if [ "$EXIT_CODE" = "124" ]; then
-            echo "⏰ Script tué après 4min30s (timeout atteint)"
-            echo "exit_code=124" >> $GITHUB_OUTPUT
-            exit 124
-          fi
-
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
 
@@ -119,16 +112,9 @@ jobs:
       - name: Résultat final
         if: always()
         run: |
-          CODE="${{ steps.login.outputs.exit_code }}"
-          EMAIL="${{ github.event.inputs.email }}"
-          PLATFORM="${{ github.event.inputs.platform }}"
-
-          if [ "$CODE" = "0" ]; then
-            echo "✅ Login réussi — $EMAIL sur $PLATFORM"
-          elif [ "$CODE" = "124" ]; then
-            echo "⏰ Timeout — script non terminé après 4min30s — $EMAIL sur $PLATFORM"
-            exit 1
+          if [ "${{ steps.login.outputs.exit_code }}" = "0" ]; then
+            echo "✅ Login réussi — ${{ github.event.inputs.email }} sur ${{ github.event.inputs.platform }}"
           else
-            echo "❌ Login échoué (code $CODE) — $EMAIL sur $PLATFORM"
+            echo "❌ Login échoué — ${{ github.event.inputs.email }} sur ${{ github.event.inputs.platform }}"
             exit 1
           fi
