@@ -15,7 +15,6 @@ on:
         description: "Identifiant utilisateur (USER_ID)"
         required: true
         type: string
-      # Inputs optionnels pour compatibilité avec le dashboard
       password:
         description: "Mot de passe (ignoré pour le claim)"
         required: false
@@ -30,7 +29,7 @@ on:
 jobs:
   claim:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 6          # ← Filet de sécurité GitHub niveau job
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
       options: --user camoxuser
@@ -39,13 +38,42 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Cloner le dépôt privé (sans supprimer /app)
+      - name: Cloner le dépôt privé dans /app
+        timeout-minutes: 1
         run: |
-          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /tmp/repo
-          cp -r /tmp/repo/* /app/
-          cp -r /tmp/repo/.env /app/ 2>/dev/null || true
+          git clone \
+            --depth=1 \
+            --branch main \
+            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
+            /tmp/repo
+
+          # Copier tout (fichiers cachés inclus)
+          cp -rn /tmp/repo/. /app/
+
+          # Copier .env si présent
+          cp /tmp/repo/.env /app/.env 2>/dev/null || true
+
+          # Supprimer le clone (token en clair dans historique git)
+          rm -rf /tmp/repo
+
+          echo "✅ Dépôt privé copié dans /app"
+          ls /app
+
+      - name: Vérifier les fichiers requis
+        timeout-minutes: 1
+        run: |
+          for f in voanjo.py ananana.py ravitoto.py; do
+            if [ ! -f "/app/$f" ]; then
+              echo "❌ Fichier manquant : $f"
+              exit 1
+            else
+              echo "✅ Présent : $f"
+            fi
+          done
 
       - name: Exécuter le script de claim
+        id: claim
+        timeout-minutes: 5      # ← Step tué après 4min si pas terminé
         working-directory: /app
         env:
           HOME: /home/camoxuser
@@ -58,11 +86,44 @@ jobs:
           GH_REPO: pick-faucet
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
-        run: xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python voanjo.py
+        run: |
+          # Timeout shell précis à 4min30s
+          timeout 270 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+            python voanjo.py
+          EXIT_CODE=$?
 
-      - name: Upload des vidéos
-        uses: actions/upload-artifact@v4
+          # 124 = timeout shell atteint
+          if [ "$EXIT_CODE" = "124" ]; then
+            echo "⏰ Script tué après 4min30s (timeout atteint)"
+            echo "exit_code=124" >> $GITHUB_OUTPUT
+            exit 124
+          fi
+
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Upload vidéo de session
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: claim-video
+          name: video-claim-${{ github.event.inputs.platform }}-${{ github.event.inputs.email }}-${{ github.run_id }}
           path: /app/videos/
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Résultat final
+        if: always()
+        run: |
+          CODE="${{ steps.claim.outputs.exit_code }}"
+          EMAIL="${{ github.event.inputs.email }}"
+          PLATFORM="${{ github.event.inputs.platform }}"
+
+          if [ "$CODE" = "0" ]; then
+            echo "✅ Claim réussi — $EMAIL sur $PLATFORM"
+          elif [ "$CODE" = "124" ]; then
+            echo "⏰ Timeout — claim non terminé après 4min30s — $EMAIL sur $PLATFORM"
+            exit 1
+          else
+            echo "❌ Claim échoué (code $CODE) — $EMAIL sur $PLATFORM"
+            exit 1
+          fi
