@@ -86,6 +86,8 @@ jobs:
           GH_REPO: pick-faucet
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           # Timeout shell précis à 4min30s
           timeout 270 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
