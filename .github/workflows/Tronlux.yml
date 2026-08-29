@@ -1,12 +1,20 @@
-name: Dump HTML Tronlux Login
+name: Dice Finoana
 
 on:
   workflow_dispatch:
+    inputs:
+      accountFile:
+        description: "account_xxx_tronpick_email.json"
+        required: true
+      baseBet:
+        description: "Mise initiale (0 = auto solde/2000)"
+        required: false
+        default: "0"
 
 jobs:
-  dump:
+  dice:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 120
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
       options: --user camoxuser
@@ -15,30 +23,25 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Cloner le dépôt privé dans /app
-        timeout-minutes: 2
+      - name: Cloner pick-faucet
         run: |
-          set -e
           git clone --depth=1 --branch main \
-            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
-            /tmp/repo
-
-          cp -rn /tmp/repo/. /app/ || true
-          cp /tmp/repo/.env /app/.env 2>/dev/null || true
+            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /tmp/repo
+          cp -rn /tmp/repo/. /app/
           rm -rf /tmp/repo
 
-          echo "=== Contenu /app ==="
-          ls -la /app
-          echo "=== dump présent ? ==="
-          ls -la /app/dump_tronlux_login.py
-
-      - name: Exécuter dump
-        timeout-minutes: 5
+      - name: Lancer dice
         working-directory: /app
         env:
           HOME: /home/camoxuser
           DISPLAY: ":99"
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_USERNAME: hasiniainahasina1-art
+          GH_REPO: pick-faucet
+          GH_BRANCH: main
+          CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
+          ACCOUNT_FILE: ${{ github.event.inputs.accountFile }}
+          BASE_BET: ${{ github.event.inputs.baseBet }}
         run: |
-          set -e
-          timeout 240 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python dump_tronlux_login.py
+          timeout 7000 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+            python dice_finoana.py
