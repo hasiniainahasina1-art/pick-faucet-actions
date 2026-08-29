@@ -16,7 +16,7 @@ on:
 jobs:
   dice:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
       options: --user camoxuser
@@ -39,10 +39,10 @@ jobs:
           cp /tmp/repo/.env /app/.env 2>/dev/null || true
           rm -rf /tmp/repo
 
-          mkdir -p /app/screenshots /app/videos
+          mkdir -p /app/screenshots
 
           echo "✅ Contenu /app :"
-          ls -la /app | head -50
+          ls -la /app | head -40
 
           if [ ! -f /app/dice_finoana.py ]; then
             echo "❌ dice_finoana.py manquant dans pick-faucet"
@@ -52,7 +52,7 @@ jobs:
 
       - name: Exécuter le bot dice
         id: dice
-        timeout-minutes: 25
+        timeout-minutes: 115
         working-directory: /app
         env:
           HOME: /home/camoxuser
@@ -66,13 +66,13 @@ jobs:
           BASE_BET: ${{ github.event.inputs.baseBet }}
         run: |
           set +e
-          # \~5 min max pour le debug UI (augmente plus tard si besoin)
-          timeout 300 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+          # \~1h55 max (job = 120 min)
+          timeout 7000 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
             python dice_finoana.py
           EXIT_CODE=$?
 
           if [ "$EXIT_CODE" = "124" ]; then
-            echo "⏰ Timeout 5 min atteint"
+            echo "⏰ Timeout shell atteint (\~2h)"
             echo "exit_code=124" >> "$GITHUB_OUTPUT"
             exit 124
           fi
@@ -80,22 +80,12 @@ jobs:
           echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
           exit $EXIT_CODE
 
-      - name: Upload captures debug (screenshots + json + html)
-        if: always()
+      - name: Upload captures debug (screenshots seulement, si erreur)
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: dice-debug-${{ github.run_id }}
-          path: |
-            /app/screenshots/
-          retention-days: 5
-          if-no-files-found: warn
-
-      - name: Upload vidéos (si présentes)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dice-video-${{ github.run_id }}
-          path: /app/videos/
+          path: /app/screenshots/
           retention-days: 3
           if-no-files-found: ignore
 
@@ -107,10 +97,9 @@ jobs:
           if [ "$CODE" = "0" ]; then
             echo "✅ Dice OK — $FILE"
           elif [ "$CODE" = "124" ]; then
-            echo "⏰ Timeout — $FILE (voir artifacts screenshots)"
+            echo "⏰ Timeout \~2h — $FILE"
             exit 1
           else
             echo "❌ Dice échoué (code $CODE) — $FILE"
-            echo "➡️ Télécharge l'artifact dice-debug-* (PNG + JSON)"
             exit 1
           fi
