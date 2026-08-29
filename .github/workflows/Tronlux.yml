@@ -1,20 +1,22 @@
-name: Dice Finoana
+name: Dice Finoana (Camoufox)
 
 on:
   workflow_dispatch:
     inputs:
       accountFile:
-        description: "account_xxx_tronpick_email.json"
+        description: "Fichier compte (ex: account_USERID_tronpick_email@gmail.com.json)"
         required: true
+        type: string
       baseBet:
         description: "Mise initiale (0 = auto solde/2000)"
         required: false
+        type: string
         default: "0"
 
 jobs:
   dice:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
       options: --user camoxuser
@@ -23,14 +25,34 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Cloner pick-faucet
+      - name: Cloner le dépôt privé dans /app
+        timeout-minutes: 2
         run: |
-          git clone --depth=1 --branch main \
-            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /tmp/repo
-          cp -rn /tmp/repo/. /app/
+          set -e
+          git clone \
+            --depth=1 \
+            --branch main \
+            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
+            /tmp/repo
+
+          cp -rn /tmp/repo/. /app/ || true
+          cp /tmp/repo/.env /app/.env 2>/dev/null || true
           rm -rf /tmp/repo
 
-      - name: Lancer dice
+          mkdir -p /app/screenshots /app/videos
+
+          echo "✅ Contenu /app :"
+          ls -la /app | head -50
+
+          if [ ! -f /app/dice_finoana.py ]; then
+            echo "❌ dice_finoana.py manquant dans pick-faucet"
+            exit 1
+          fi
+          echo "✅ dice_finoana.py présent"
+
+      - name: Exécuter le bot dice
+        id: dice
+        timeout-minutes: 25
         working-directory: /app
         env:
           HOME: /home/camoxuser
@@ -43,5 +65,52 @@ jobs:
           ACCOUNT_FILE: ${{ github.event.inputs.accountFile }}
           BASE_BET: ${{ github.event.inputs.baseBet }}
         run: |
-          timeout 7000 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+          set +e
+          # \~5 min max pour le debug UI (augmente plus tard si besoin)
+          timeout 300 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
             python dice_finoana.py
+          EXIT_CODE=$?
+
+          if [ "$EXIT_CODE" = "124" ]; then
+            echo "⏰ Timeout 5 min atteint"
+            echo "exit_code=124" >> "$GITHUB_OUTPUT"
+            exit 124
+          fi
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          exit $EXIT_CODE
+
+      - name: Upload captures debug (screenshots + json + html)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dice-debug-${{ github.run_id }}
+          path: |
+            /app/screenshots/
+          retention-days: 5
+          if-no-files-found: warn
+
+      - name: Upload vidéos (si présentes)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dice-video-${{ github.run_id }}
+          path: /app/videos/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Résultat final
+        if: always()
+        run: |
+          CODE="${{ steps.dice.outputs.exit_code }}"
+          FILE="${{ github.event.inputs.accountFile }}"
+          if [ "$CODE" = "0" ]; then
+            echo "✅ Dice OK — $FILE"
+          elif [ "$CODE" = "124" ]; then
+            echo "⏰ Timeout — $FILE (voir artifacts screenshots)"
+            exit 1
+          else
+            echo "❌ Dice échoué (code $CODE) — $FILE"
+            echo "➡️ Télécharge l'artifact dice-debug-* (PNG + JSON)"
+            exit 1
+          fi
