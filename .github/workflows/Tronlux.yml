@@ -1,0 +1,44 @@
+name: Dump HTML Tronlux Login
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    container:
+      image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
+      options: --user camoxuser
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GH_TOKEN }}
+
+    steps:
+      - name: Cloner le dépôt privé dans /app
+        timeout-minutes: 2
+        run: |
+          set -e
+          git clone --depth=1 --branch main \
+            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
+            /tmp/repo
+
+          cp -rn /tmp/repo/. /app/ || true
+          cp /tmp/repo/.env /app/.env 2>/dev/null || true
+          rm -rf /tmp/repo
+
+          echo "=== Contenu /app ==="
+          ls -la /app
+          echo "=== dump présent ? ==="
+          ls -la /app/dump_tronlux_login.py
+
+      - name: Exécuter dump
+        timeout-minutes: 5
+        working-directory: /app
+        env:
+          HOME: /home/camoxuser
+          DISPLAY: ":99"
+        run: |
+          set -e
+          timeout 240 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+            python dump_tronlux_login.py
