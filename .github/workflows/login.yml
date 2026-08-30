@@ -55,8 +55,10 @@ jobs:
             https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
             /tmp/repo
  
-          # Copier les fichiers EN ÉCRASANT les anciens (pas de -n)
-          cp -r /tmp/repo/. /app/
+          # Copier uniquement les fichiers Python du repo (écrase l'image Docker)
+          cp /tmp/repo/login.py /app/login.py
+          cp /tmp/repo/ananana.py /app/ananana.py 2>/dev/null || true
+          cp /tmp/repo/ravitoto.py /app/ravitoto.py 2>/dev/null || true
  
           # Copier .env si présent
           cp /tmp/repo/.env /app/.env 2>/dev/null || true
@@ -69,7 +71,7 @@ jobs:
  
       - name: Vérifier les fichiers requis
         run: |
-          for f in test_login_workflow.py ananana.py ravitoto.py; do
+          for f in login.py ananana.py ravitoto.py; do
             if [ ! -f "/app/$f" ]; then
               echo "❌ Fichier manquant : $f"
               exit 1
@@ -78,13 +80,13 @@ jobs:
             fi
           done
  
-      - name: Afficher la version du script
+      - name: Vérifier la version du script
         run: |
           echo "🔍 Vérification que human_fill utilise JS (pas page.fill)..."
-          if grep -q "page.evaluate" /app/test_login_workflow.py; then
+          if grep -q "page.evaluate" /app/login.py; then
             echo "✅ Bonne version détectée (human_fill via JS)"
           else
-            echo "❌ ANCIENNE VERSION DÉTECTÉE — page.fill encore présent"
+            echo "❌ ANCIENNE VERSION — page.fill encore présent"
             exit 1
           fi
  
@@ -106,7 +108,7 @@ jobs:
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: |
           xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python test_login_workflow.py
+            python login.py
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
