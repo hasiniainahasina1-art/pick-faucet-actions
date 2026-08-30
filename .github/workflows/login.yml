@@ -47,10 +47,16 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Cloner le dépôt privé dans /app
+      - name: Masquer email et mot de passe dans les logs
+        run: |
+          echo "::add-mask::${{ github.event.inputs.password }}"
+          echo "::add-mask::${{ github.event.inputs.email }}"
+
+      - name: Cloner le dépôt privé (scripts + comptes) dans /app
         timeout-minutes: 2
         run: |
           set -e
+          # Scripts + fichiers compte = repo PRIVÉ
           git clone \
             --depth=1 \
             --branch main \
@@ -63,13 +69,13 @@ jobs:
 
           mkdir -p /app/videos
 
-          echo "✅ Contenu /app :"
+          echo "✅ Dépôt privé copié dans /app"
           ls -la /app | head -40
 
       - name: Vérifier les fichiers requis
         timeout-minutes: 1
         run: |
-          for f in login.py ananana.py ravitoto.py; do
+          for f in test_login_workflow.py ananana.py ravitoto.py; do
             if [ ! -f "/app/$f" ]; then
               echo "❌ Fichier manquant : $f"
               exit 1
@@ -99,9 +105,13 @@ jobs:
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: |
           set +e
+          # Double masquage (au cas où le 1er step n'a pas suffi pour ce job)
+          echo "::add-mask::${{ github.event.inputs.password }}"
+          echo "::add-mask::${{ github.event.inputs.email }}"
+
           export PYTHONUNBUFFERED=1
           timeout 540 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python -u login.py
+            python -u test_login_workflow.py
           EXIT_CODE=$?
 
           if [ "$EXIT_CODE" = "124" ]; then
@@ -117,7 +127,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-login-\( {{ github.event.inputs.platform }}- \){{ github.event.inputs.email }}-${{ github.run_id }}
+          name: video-login-\( {{ github.event.inputs.platform }}- \){{ github.run_id }}
           path: /app/videos/
           retention-days: 3
           if-no-files-found: warn
@@ -126,15 +136,14 @@ jobs:
         if: always()
         run: |
           CODE="${{ steps.login.outputs.exit_code }}"
-          EMAIL="${{ github.event.inputs.email }}"
           PLATFORM="${{ github.event.inputs.platform }}"
 
           if [ "$CODE" = "0" ]; then
-            echo "✅ Login réussi — $EMAIL sur $PLATFORM"
+            echo "✅ Login réussi — plateforme $PLATFORM"
           elif [ "$CODE" = "124" ]; then
-            echo "⏰ Timeout — $EMAIL sur $PLATFORM"
+            echo "⏰ Timeout — plateforme $PLATFORM"
             exit 1
           else
-            echo "❌ Login échoué (code $CODE) — $EMAIL sur $PLATFORM"
+            echo "❌ Login échoué (code $CODE) — plateforme $PLATFORM"
             exit 1
           fi
