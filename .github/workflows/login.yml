@@ -84,7 +84,7 @@ jobs:
           HOME: /home/camoxuser
           DISPLAY: ":99"
           TEST_EMAIL: ${{ github.event.inputs.email }}
-          TEST_PASSWORD: ${{ github.event.inputs.password }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}  # ← doit être un secret, pas une valeur en dur
           TEST_PLATFORM: ${{ github.event.inputs.platform }}
           TEST_INITIAL_TIMER: ${{ github.event.inputs.initialTimer }}
           USER_ID: ${{ github.event.inputs.userId }}
