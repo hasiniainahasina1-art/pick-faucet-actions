@@ -75,7 +75,7 @@ jobs:
       - name: Vérifier les fichiers requis
         timeout-minutes: 1
         run: |
-          for f in test_login_workflow.py ananana.py ravitoto.py; do
+          for f in login.py ananana.py ravitoto.py; do
             if [ ! -f "/app/$f" ]; then
               echo "❌ Fichier manquant : $f"
               exit 1
@@ -111,7 +111,7 @@ jobs:
 
           export PYTHONUNBUFFERED=1
           timeout 540 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python -u test_login_workflow.py
+            python -u login.py
           EXIT_CODE=$?
 
           if [ "$EXIT_CODE" = "124" ]; then
