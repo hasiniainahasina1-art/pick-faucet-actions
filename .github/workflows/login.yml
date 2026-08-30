@@ -1,5 +1,5 @@
 name: Test Account Login
- 
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,12 +8,11 @@ on:
         required: true
         type: string
       password:
-        description: "Mot de passe (ignoré — utilise le secret TEST_PASSWORD)"
-        required: false
+        description: "Mot de passe du compte"
+        required: true
         type: string
-        default: ""
       platform:
-        description: "Plateforme (ex: tronpick)"
+        description: "Plateforme (ex: tronpick, tronlux, litepick)"
         required: true
         type: string
       proxyIndex:
@@ -32,46 +31,45 @@ on:
         type: string
         default: "login"
       userId:
-        description: "Identifiant utilisateur (optionnel)"
+        description: "Identifiant utilisateur Supabase"
         required: false
         type: string
- 
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     container:
       image: ghcr.io/hasiniainahasina1-art/camoufox-system:latest
+      options: --user camoxuser
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GH_TOKEN }}
- 
+
     steps:
       - name: Cloner le dépôt privé dans /app
+        timeout-minutes: 2
         run: |
+          set -e
           git clone \
             --depth=1 \
             --branch main \
             https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
             /tmp/repo
- 
-          # Copier uniquement les fichiers Python du repo (écrase l'image Docker)
-          cp /tmp/repo/login.py /app/login.py
-          cp /tmp/repo/ananana.py /app/ananana.py 2>/dev/null || true
-          cp /tmp/repo/ravitoto.py /app/ravitoto.py 2>/dev/null || true
- 
-          # Copier .env si présent
+
+          cp -rn /tmp/repo/. /app/ || true
           cp /tmp/repo/.env /app/.env 2>/dev/null || true
- 
-          # Nettoyer le clone
           rm -rf /tmp/repo
- 
-          echo "✅ Dépôt privé copié dans /app"
-          ls /app
- 
+
+          mkdir -p /app/videos
+
+          echo "✅ Contenu /app :"
+          ls -la /app | head -40
+
       - name: Vérifier les fichiers requis
+        timeout-minutes: 1
         run: |
-          for f in login.py ananana.py ravitoto.py; do
+          for f in test_login_workflow.py ananana.py ravitoto.py; do
             if [ ! -f "/app/$f" ]; then
               echo "❌ Fichier manquant : $f"
               exit 1
@@ -79,26 +77,19 @@ jobs:
               echo "✅ Présent : $f"
             fi
           done
- 
-      - name: Vérifier la version du script
-        run: |
-          echo "🔍 Vérification que human_fill utilise JS (pas page.fill)..."
-          if grep -q "page.evaluate" /app/login.py; then
-            echo "✅ Bonne version détectée (human_fill via JS)"
-          else
-            echo "❌ ANCIENNE VERSION — page.fill encore présent"
-            exit 1
-          fi
- 
+
       - name: Exécuter le script de login
         id: login
+        timeout-minutes: 10
         working-directory: /app
         env:
+          PYTHONUNBUFFERED: "1"
           HOME: /home/camoxuser
           DISPLAY: ":99"
           TEST_EMAIL: ${{ github.event.inputs.email }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          TEST_PASSWORD: ${{ github.event.inputs.password }}
           TEST_PLATFORM: ${{ github.event.inputs.platform }}
+          TEST_PROXY_INDEX: ${{ github.event.inputs.proxyIndex }}
           TEST_INITIAL_TIMER: ${{ github.event.inputs.initialTimer }}
           USER_ID: ${{ github.event.inputs.userId }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -107,36 +98,43 @@ jobs:
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: |
-          xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python login.py
+          set +e
+          export PYTHONUNBUFFERED=1
+          timeout 540 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+            python -u test_login_workflow.py
           EXIT_CODE=$?
-          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          if [ "$EXIT_CODE" = "124" ]; then
+            echo "⏰ Timeout login (\~9 min)"
+            echo "exit_code=124" >> "$GITHUB_OUTPUT"
+            exit 124
+          fi
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
           exit $EXIT_CODE
- 
+
       - name: Upload vidéo de session
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-${{ github.event.inputs.platform }}-${{ github.event.inputs.email }}-${{ github.run_id }}
+          name: video-login-\( {{ github.event.inputs.platform }}- \){{ github.event.inputs.email }}-${{ github.run_id }}
           path: /app/videos/
           retention-days: 3
           if-no-files-found: warn
- 
-      - name: Upload HTML debug si échec
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-html-${{ github.run_id }}
-          path: /app/debug_page.html
-          retention-days: 3
-          if-no-files-found: warn
- 
+
       - name: Résultat final
         if: always()
         run: |
-          if [ "${{ steps.login.outputs.exit_code }}" = "0" ]; then
-            echo "✅ Login réussi — ${{ github.event.inputs.email }} sur ${{ github.event.inputs.platform }}"
+          CODE="${{ steps.login.outputs.exit_code }}"
+          EMAIL="${{ github.event.inputs.email }}"
+          PLATFORM="${{ github.event.inputs.platform }}"
+
+          if [ "$CODE" = "0" ]; then
+            echo "✅ Login réussi — $EMAIL sur $PLATFORM"
+          elif [ "$CODE" = "124" ]; then
+            echo "⏰ Timeout — $EMAIL sur $PLATFORM"
+            exit 1
           else
-            echo "❌ Login échoué — ${{ github.event.inputs.email }} sur ${{ github.event.inputs.platform }}"
+            echo "❌ Login échoué (code $CODE) — $EMAIL sur $PLATFORM"
             exit 1
           fi
