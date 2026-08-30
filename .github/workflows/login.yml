@@ -1,14 +1,10 @@
 name: Test Account Login
-
+ 
 on:
   workflow_dispatch:
     inputs:
       email:
         description: "Adresse email du compte"
-        required: true
-        type: string
-      password:
-        description: "Mot de passe du compte"
         required: true
         type: string
       platform:
@@ -34,7 +30,7 @@ on:
         description: "Identifiant utilisateur (optionnel)"
         required: false
         type: string
-
+ 
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -44,7 +40,7 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GH_TOKEN }}
-
+ 
     steps:
       - name: Cloner le dépôt privé dans /app
         run: |
@@ -53,19 +49,19 @@ jobs:
             --branch main \
             https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
             /tmp/repo
-
-          # Copier les fichiers sans écraser les dossiers système de /app
-          cp -rn /tmp/repo/. /app/
-
+ 
+          # Copier les fichiers EN ÉCRASANT les anciens (pas de -n)
+          cp -r /tmp/repo/. /app/
+ 
           # Copier .env si présent
           cp /tmp/repo/.env /app/.env 2>/dev/null || true
-
-          # Nettoyer le clone (contient le token en clair dans l'historique git)
+ 
+          # Nettoyer le clone
           rm -rf /tmp/repo
-
+ 
           echo "✅ Dépôt privé copié dans /app"
           ls /app
-
+ 
       - name: Vérifier les fichiers requis
         run: |
           for f in test_login_workflow.py ananana.py ravitoto.py; do
@@ -76,7 +72,17 @@ jobs:
               echo "✅ Présent : $f"
             fi
           done
-
+ 
+      - name: Afficher la version du script
+        run: |
+          echo "🔍 Vérification que human_fill utilise JS (pas page.fill)..."
+          if grep -q "page.evaluate" /app/test_login_workflow.py; then
+            echo "✅ Bonne version détectée (human_fill via JS)"
+          else
+            echo "❌ ANCIENNE VERSION DÉTECTÉE — page.fill encore présent"
+            exit 1
+          fi
+ 
       - name: Exécuter le script de login
         id: login
         working-directory: /app
@@ -84,7 +90,7 @@ jobs:
           HOME: /home/camoxuser
           DISPLAY: ":99"
           TEST_EMAIL: ${{ github.event.inputs.email }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}  # ← doit être un secret, pas une valeur en dur
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
           TEST_PLATFORM: ${{ github.event.inputs.platform }}
           TEST_INITIAL_TIMER: ${{ github.event.inputs.initialTimer }}
           USER_ID: ${{ github.event.inputs.userId }}
@@ -99,7 +105,7 @@ jobs:
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
-
+ 
       - name: Upload vidéo de session
         if: always()
         uses: actions/upload-artifact@v4
@@ -108,7 +114,16 @@ jobs:
           path: /app/videos/
           retention-days: 3
           if-no-files-found: warn
-
+ 
+      - name: Upload HTML debug si échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-html-${{ github.run_id }}
+          path: /app/debug_page.html
+          retention-days: 3
+          if-no-files-found: warn
+ 
       - name: Résultat final
         if: always()
         run: |
