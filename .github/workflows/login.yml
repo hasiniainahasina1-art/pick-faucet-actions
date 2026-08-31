@@ -47,16 +47,18 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Masquer email et mot de passe dans les logs
+      - name: Masquer les données sensibles
         run: |
           echo "::add-mask::${{ github.event.inputs.password }}"
           echo "::add-mask::${{ github.event.inputs.email }}"
+          echo "::add-mask::${{ github.event.inputs.userId }}"
+          echo "::add-mask::hasiniainahasina1-art"
+          echo "::add-mask::pick-faucet"
 
       - name: Cloner le dépôt privé (scripts + comptes) dans /app
         timeout-minutes: 2
         run: |
           set -e
-          # Scripts + fichiers compte = repo PRIVÉ
           git clone \
             --depth=1 \
             --branch main \
@@ -105,9 +107,11 @@ jobs:
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
         run: |
           set +e
-          # Double masquage (au cas où le 1er step n'a pas suffi pour ce job)
           echo "::add-mask::${{ github.event.inputs.password }}"
           echo "::add-mask::${{ github.event.inputs.email }}"
+          echo "::add-mask::${{ github.event.inputs.userId }}"
+          echo "::add-mask::hasiniainahasina1-art"
+          echo "::add-mask::pick-faucet"
 
           export PYTHONUNBUFFERED=1
           timeout 540 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
@@ -131,6 +135,7 @@ jobs:
           path: /app/videos/
           retention-days: 3
           if-no-files-found: warn
+
       - name: Résultat final
         if: always()
         run: |
