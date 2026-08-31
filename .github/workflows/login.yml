@@ -131,7 +131,6 @@ jobs:
           path: /app/videos/
           retention-days: 3
           if-no-files-found: warn
-
       - name: Résultat final
         if: always()
         run: |
