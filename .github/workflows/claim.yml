@@ -62,7 +62,7 @@ jobs:
       - name: Vérifier les fichiers requis
         timeout-minutes: 1
         run: |
-          for f in voanjo.py ananana.py ravitoto.py; do
+          for f in voanjo1.py ananana.py ravitoto.py; do
             if [ ! -f "/app/$f" ]; then
               echo "❌ Fichier manquant : $f"
               exit 1
@@ -91,7 +91,7 @@ jobs:
         run: |
           # Timeout shell précis à 4min30s
           timeout 270 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python voanjo.py
+            python voanjo1.py
           EXIT_CODE=$?
 
           # 124 = timeout shell atteint
