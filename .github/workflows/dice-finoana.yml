@@ -45,10 +45,10 @@ jobs:
           ls -la /app | head -40
 
           if [ ! -f /app/dice_finoana.py ]; then
-            echo "❌ dice_finoana.py manquant dans pick-faucet"
+            echo "❌ dice_finoana1.py manquant dans pick-faucet"
             exit 1
           fi
-          echo "✅ dice_finoana.py présent"
+          echo "✅ dice_finoana1.py présent"
 
       - name: Exécuter le bot dice
         id: dice
@@ -70,7 +70,7 @@ jobs:
           export PYTHONUNBUFFERED=1
           # \~1h55 max (job limité à 120 min)
           timeout 7000 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python -u dice_finoana.py
+            python -u dice_finoana1.py
           EXIT_CODE=$?
 
           if [ "$EXIT_CODE" = "124" ]; then
