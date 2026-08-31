@@ -25,6 +25,12 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
+      - name: Masquer les données sensibles
+        run: |
+          echo "::add-mask::${{ github.event.inputs.accountFile }}"
+          echo "::add-mask::hasiniainahasina1-art"
+          echo "::add-mask::pick-faucet"
+
       - name: Cloner le dépôt privé dans /app
         timeout-minutes: 2
         run: |
@@ -44,11 +50,11 @@ jobs:
           echo "✅ Contenu /app :"
           ls -la /app | head -40
 
-          if [ ! -f /app/dice_finoana.py ]; then
-            echo "❌ dice_finoana1.py manquant dans pick-faucet"
+          if [ ! -f /app/dice.py ]; then
+            echo "❌ dice.py manquant dans pick-faucet"
             exit 1
           fi
-          echo "✅ dice_finoana1.py présent"
+          echo "✅ dice.py présent"
 
       - name: Exécuter le bot dice
         id: dice
@@ -67,10 +73,14 @@ jobs:
           BASE_BET: ${{ github.event.inputs.baseBet }}
         run: |
           set +e
+          echo "::add-mask::${{ github.event.inputs.accountFile }}"
+          echo "::add-mask::hasiniainahasina1-art"
+          echo "::add-mask::pick-faucet"
+
           export PYTHONUNBUFFERED=1
-          # \~1h55 max (job limité à 120 min)
+          # \~1h55 max
           timeout 7000 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
-            python -u dice_finoana1.py
+            python -u dice.py
           EXIT_CODE=$?
 
           if [ "$EXIT_CODE" = "124" ]; then
@@ -82,7 +92,7 @@ jobs:
           echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
           exit $EXIT_CODE
 
-      - name: Upload captures debug (screenshots si échec)
+      - name: Upload captures debug (si échec)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -95,13 +105,12 @@ jobs:
         if: always()
         run: |
           CODE="${{ steps.dice.outputs.exit_code }}"
-          FILE="${{ github.event.inputs.accountFile }}"
           if [ "$CODE" = "0" ]; then
-            echo "✅ Dice OK — $FILE"
+            echo "✅ Dice OK"
           elif [ "$CODE" = "124" ]; then
-            echo "⏰ Timeout \~2h — $FILE"
+            echo "⏰ Timeout \~2h"
             exit 1
           else
-            echo "❌ Dice échoué (code $CODE) — $FILE"
+            echo "❌ Dice échoué (code $CODE)"
             exit 1
           fi
