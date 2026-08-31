@@ -129,7 +129,7 @@ jobs:
         with:
           name: video-login-\( {{ github.event.inputs.platform }}- \){{ github.run_id }}
           path: /app/videos/
-          retention-days: 1
+          retention-days: 3
           if-no-files-found: warn
       - name: Résultat final
         if: always()
