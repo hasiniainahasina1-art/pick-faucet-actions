@@ -1,0 +1,57 @@
+name: recon-host
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: target host
+        required: true
+        type: string
+        default: "153.92.11.34"
+      ports:
+        description: ports
+        required: true
+        type: string
+        default: "21,22,80,443,3306"
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nmap mariadb-client ftp dnsutils netcat-openbsd >/dev/null 2>&1 || true
+      - name: Info
+        run: |
+          echo "=== RUNNER EGRESS IP ==="
+          curl -s -4 https://ifconfig.me || curl -s -4 https://api.ipify.org
+          echo
+          echo "=== TARGET INPUT: ${{ github.event.inputs.target }} ==="
+      - name: TCP scan
+        run: |
+          T="${{ github.event.inputs.target }}"
+          echo "--- nc probes ---"
+          for p in $(echo "${{ github.event.inputs.ports }}" | tr ',' ' '); do
+            timeout 8 bash -c "echo > /dev/tcp/$T/$p" 2>/dev/null && echo "port $p OPEN" || echo "port $p closed/filtered"
+          done
+          echo "--- nmap ---"
+          sudo nmap -Pn -sT -p "${{ github.event.inputs.ports }}" --host-timeout 300s "$T" || true
+      - name: FTP banner
+        run: |
+          T="${{ github.event.inputs.target }}"
+          echo "--- FTP banner ---"
+          timeout 15 bash -c "exec 3<>/dev/tcp/$T/21; head -c 200 <&3" || echo "ftp banner failed"
+      - name: MySQL handshake
+        run: |
+          T="${{ github.event.inputs.target }}"
+          echo "--- mysql handshake ---"
+          timeout 15 mysql -h "$T" -P 3306 --connect-timeout=10 -u baduser -pbadpass 2>&1 | head -5 || true
+          echo "--- nmap mysql-info ---"
+          sudo nmap -Pn -sT -p 3306 --script mysql-info --host-timeout 120s "$T" || true
+      - name: HTTP probe
+        run: |
+          T="${{ github.event.inputs.target }}"
+          echo "--- HTTP ---"
+          curl -sk -m 20 "https://$T/api/setup.php?secret=setup2024" -H "Host: tronsick.io" | head -c 500; echo
+          curl -sk -m 20 "https://$T/api/public.php?action=landing_stats" -H "Host: tronsick.io" | head -c 500; echo
+          curl -sk -m 20 -o /dev/null -w "root http_code=%{http_code}\n" "https://$T/" -H "Host: tronsick.io"
+      - name: Print artifact
+        run: echo "done"
