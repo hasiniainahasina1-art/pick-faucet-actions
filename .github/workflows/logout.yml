@@ -15,14 +15,13 @@ on:
         description: "Identifiant utilisateur (USER_ID)"
         required: true
         type: string
-      # Inputs optionnels pour compatibilité avec le dashboard
       password:
-        description: "Mot de passe (ignoré pour la déconnexion)"
+        description: "Mot de passe (ignore)"
         required: false
         type: string
         default: ""
       proxyIndex:
-        description: "Index du proxy (ignoré, pas de proxy utilisé)"
+        description: "Index du proxy (ignore)"
         required: false
         type: string
         default: "0"
@@ -39,13 +38,33 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Cloner le dépôt privé (sans supprimer /app)
+      - name: Masquer tous les secrets
         run: |
-          git clone https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git /tmp/repo
-          cp -r /tmp/repo/* /app/
-          cp -r /tmp/repo/.env /app/ 2>/dev/null || true
+          echo "::add-mask::${{ secrets.GH_TOKEN }}"
+          echo "::add-mask::${{ secrets.CRYPTO_SECRET }}"
+          echo "::add-mask::${{ github.event.inputs.email }}"
+          echo "::add-mask::${{ github.event.inputs.userId }}"
+          echo "::add-mask::hasiniainahasina1-art"
+          echo "::add-mask::pick-faucet"
 
-      - name: Exécuter le script de déconnexion
+      - name: Cloner le depot prive dans /app
+        timeout-minutes: 2
+        run: |
+          set -e
+          git clone \
+            --quiet \
+            --depth=1 \
+            --branch main \
+            https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
+            /tmp/repo
+
+          cp -rn /tmp/repo/. /app/ || true
+          cp /tmp/repo/.env /app/.env 2>/dev/null || true
+          rm -rf /tmp/repo
+
+          echo "Depot prive copie dans /app"
+
+      - name: Executer le script de deconnexion
         working-directory: /app
         env:
           HOME: /home/camoxuser
@@ -58,11 +77,15 @@ jobs:
           GH_REPO: pick-faucet
           GH_BRANCH: main
           CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
-        run: xvfb-run -s "-screen 0 1280x720x24" --auto-servernum python borita.py
+        run: |
+          xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
+            python borita.py
 
-      - name: Upload des vidéos
+      - name: Upload video de session
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: logout-video
+          name: video-logout-${{ github.run_id }}
           path: /app/videos/
+          retention-days: 1
+          if-no-files-found: warn

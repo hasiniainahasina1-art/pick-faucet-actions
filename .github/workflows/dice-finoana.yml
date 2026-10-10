@@ -25,17 +25,20 @@ jobs:
         password: ${{ secrets.GH_TOKEN }}
 
     steps:
-      - name: Masquer les données sensibles
+      - name: Masquer tous les secrets
         run: |
+          echo "::add-mask::${{ secrets.GH_TOKEN }}"
+          echo "::add-mask::${{ secrets.CRYPTO_SECRET }}"
           echo "::add-mask::${{ github.event.inputs.accountFile }}"
           echo "::add-mask::hasiniainahasina1-art"
           echo "::add-mask::pick-faucet"
 
-      - name: Cloner le dépôt privé dans /app
+      - name: Cloner le depot prive dans /app
         timeout-minutes: 2
         run: |
           set -e
           git clone \
+            --quiet \
             --depth=1 \
             --branch main \
             https://${{ secrets.GH_TOKEN }}@github.com/hasiniainahasina1-art/pick-faucet.git \
@@ -46,17 +49,16 @@ jobs:
           rm -rf /tmp/repo
 
           mkdir -p /app/screenshots
-
-          echo "✅ Contenu /app :"
+          echo "Contenu /app :"
           ls -la /app | head -40
 
           if [ ! -f /app/dice.py ]; then
-            echo "❌ dice.py manquant dans pick-faucet"
+            echo "dice.py manquant dans pick-faucet"
             exit 1
           fi
-          echo "✅ dice.py présent"
+          echo "dice.py present"
 
-      - name: Exécuter le bot dice
+      - name: Executer le bot dice
         id: dice
         timeout-minutes: 115
         working-directory: /app
@@ -73,18 +75,13 @@ jobs:
           BASE_BET: ${{ github.event.inputs.baseBet }}
         run: |
           set +e
-          echo "::add-mask::${{ github.event.inputs.accountFile }}"
-          echo "::add-mask::hasiniainahasina1-art"
-          echo "::add-mask::pick-faucet"
-
           export PYTHONUNBUFFERED=1
-          # \~1h55 max
           timeout 7000 xvfb-run -s "-screen 0 1280x720x24" --auto-servernum \
             python -u dice.py
           EXIT_CODE=$?
 
           if [ "$EXIT_CODE" = "124" ]; then
-            echo "⏰ Timeout shell atteint (\~2h)"
+            echo "Timeout shell (~2h)"
             echo "exit_code=124" >> "$GITHUB_OUTPUT"
             exit 124
           fi
@@ -92,25 +89,25 @@ jobs:
           echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
           exit $EXIT_CODE
 
-      - name: Upload captures debug (si échec)
+      - name: Upload captures debug si echec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: dice-debug-${{ github.run_id }}
           path: /app/screenshots/
-          retention-days: 3
+          retention-days: 1
           if-no-files-found: ignore
 
-      - name: Résultat final
+      - name: Resultat final
         if: always()
         run: |
           CODE="${{ steps.dice.outputs.exit_code }}"
           if [ "$CODE" = "0" ]; then
-            echo "✅ Dice OK"
+            echo "Dice OK"
           elif [ "$CODE" = "124" ]; then
-            echo "⏰ Timeout \~2h"
+            echo "Timeout ~2h"
             exit 1
           else
-            echo "❌ Dice échoué (code $CODE)"
+            echo "Dice echoue (code $CODE)"
             exit 1
           fi
